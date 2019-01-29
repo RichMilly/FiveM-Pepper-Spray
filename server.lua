@@ -12,3 +12,8 @@ RegisterServerEvent("pepperspray:SyncStopParticles")
 AddEventHandler("pepperspray:SyncStopParticles", function(peppersprayid)
     TriggerClientEvent("pepperspray:StopParticles", -1, peppersprayid)
 end)
+
+RegisterServerEvent("pepperspray:TriggerPlayerEffect")
+AddEventHandler("pepperspray:TriggerPlayerEffect", function(playerid)
+	TriggerClientEvent("pepperspray:PlayerEffect", playerid)
+end)

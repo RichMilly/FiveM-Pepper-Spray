@@ -1,6 +1,8 @@
 local config = {}
 config.intensity = 4.0
 config.timeUntilReload = 10.0
+config.sprayRange = 3.0
+config.sprayEffectTime = 10
 
 local holdingpepperspray = false
 local usingpepperspray = false
@@ -36,7 +38,7 @@ AddEventHandler("pepperspray:Togglepepperspray", function()
         NetworkSetNetworkIdDynamic(netid, true)
         SetNetworkIdCanMigrate(netid, false)
         AttachEntityToEntity(peppersprayspawned, GetPlayerPed(PlayerId()), GetPedBoneIndex(GetPlayerPed(PlayerId()), 28422), 0.05, -0.05, 0.0, 260.0, 0.0, 0.0, 1, 1, 0, 1, 0, 1)
-        TaskPlayAnim(GetPlayerPed(PlayerId()), 1.0, -1, -1, 50, 0, 0, 0, 0) -- 50 = 32 + 16 + 2
+        --TaskPlayAnim(GetPlayerPed(PlayerId()), 1.0, -1, -1, 50, 0, 0, 0, 0) -- 50 = 32 + 16 + 2
         TaskPlayAnim(GetPlayerPed(PlayerId()), animDict, animName, 1.0, -1, -1, 50, 0, 0, 0, 0)
         pepperspray_net = netid
         holdingpepperspray = true
@@ -67,8 +69,6 @@ AddEventHandler("pepperspray:StartParticles", function(peppersprayid)
     SetTimeout(10000, function()
         usingpepperspray = false
     end)
-    
-    --local particleEffect = StartParticleFxLoopedOnEntity(particleName, entity, -0.75, 0.005, 0.0, 180.0, -75.0, 0.0, 2.5, 0.0, 0.0, 0.0)
 end)
 
 ---------------------------------------------------------------------------
@@ -81,7 +81,25 @@ AddEventHandler("pepperspray:StopParticles", function(peppersprayid)
 end)
 
 ---------------------------------------------------------------------------
--- Get Vehicle Closest Door --
+-- Play Effect
+---------------------------------------------------------------------------
+local isSprayed = false
+
+RegisterNetEvent("pepperspray:PlayerEffect")
+AddEventHandler("pepperspray:PlayerEffect", function()
+	if not isSprayed then
+		SetTimecycleModifier("drunk")
+		SetTimecycleModifierStrength(2.0)
+		local ped = GetPlayerPed(PlayerId())
+		local fallPos = GetOffsetFromEntityInWorldCoords(ped, 0.0, -1.0, 0.0)
+		SetPedToRagdollWithFall(ped, config.sprayEffectTime * 1000, config.sprayEffectTime * 1000, 1, -GetEntityForwardVector(ped), 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+		Citizen.Wait(config.sprayEffectTime * 1000)
+		ClearTimecycleModifier()
+	end
+end)
+
+---------------------------------------------------------------------------
+-- Spraying Pepper Spray --
 ---------------------------------------------------------------------------
 Citizen.CreateThread(function()
     while true do
@@ -93,7 +111,7 @@ Citizen.CreateThread(function()
                 DisableControlAction(0, i, true)
             end
             if IsControlJustPressed(0, 24) and usingpepperspray == false then
-                Timer()
+                FireSpray()
             end
         else
             for i=140, 143 do
@@ -104,12 +122,26 @@ Citizen.CreateThread(function()
     end
 end)
 
-function Timer()
+function FireSpray()
     Citizen.CreateThread(function()
         usingpepperspray = true
         local time = config.timeUntilReload
         local count = time
-        TriggerServerEvent("pepperspray:SyncStartParticles", pepperspray_net)
+		TriggerServerEvent("pepperspray:SyncStartParticles", pepperspray_net)
+	
+		local foundPed = FindPedInRaycast()
+		if foundPed ~= 0 then
+			if IsPedAPlayer(foundPed) then
+				local playerid = GetPlayerFromPed(foundPed)
+				if playerid ~= -1 then
+					TriggerServerEvent("pepperspray:TriggerPlayerEffect", GetPlayerServerId(playerid))
+				end
+			else
+				local fallPos = GetOffsetFromEntityInWorldCoords(foundPed, 0.0, -1.0, 0.0)
+				SetPedToRagdollWithFall(foundPed, 7000, 7000, 1, -GetEntityForwardVector(foundPed), 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+			end
+		end
+
         while IsControlPressed(0, 24) and count > 0 do
 
             if not holdingpepperspray then
@@ -124,6 +156,25 @@ function Timer()
         TriggerServerEvent("pepperspray:SyncStopParticles", pepperspray_net)
         usingpepperspray = false
     end)
+end
+
+function FindPedInRaycast()
+	local player = PlayerId()
+	local plyPed = GetPlayerPed(player)
+	local plyPos = GetEntityCoords(plyPed, false)
+	local plyOffset = GetOffsetFromEntityInWorldCoords(plyPed, 0.0, config.sprayRange, 0.0)
+	local rayHandle = StartShapeTestCapsule(plyPos.x, plyPos.y, plyPos.z, plyOffset.x, plyOffset.y, plyOffset.z, 1.0, 12, plyPed, 7)
+	local _, _, _, _, ped = GetShapeTestResult(rayHandle)
+	return ped
+end
+
+function GetPlayerFromPed(ped)
+	for a = 0, 64 do
+		if GetPlayerPed(a) == ped then
+			return a
+		end
+	end
+	return -1
 end
 
 function Notification(message)
