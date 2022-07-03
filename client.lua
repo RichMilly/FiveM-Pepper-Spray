@@ -127,20 +127,17 @@ function FireSpray()
         usingpepperspray = true
         local time = config.timeUntilReload
         local count = time
-		TriggerServerEvent("pepperspray:SyncStartParticles", pepperspray_net)
-	
-		local foundPed = FindPedInRaycast()
-		if foundPed ~= 0 then
-			if IsPedAPlayer(foundPed) then
-				local playerid = GetPlayerFromPed(foundPed)
-				if playerid ~= -1 then
-					TriggerServerEvent("pepperspray:TriggerPlayerEffect", GetPlayerServerId(playerid))
-				end
-			else
-				local fallPos = GetOffsetFromEntityInWorldCoords(foundPed, 0.0, -1.0, 0.0)
-				SetPedToRagdollWithFall(foundPed, 7000, 7000, 1, -GetEntityForwardVector(foundPed), 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
-			end
-		end
+	TriggerServerEvent("pepperspray:SyncStartParticles", pepperspray_net)
+
+	local closestPlayer, distance = GetClosestPlayer();
+
+	if distance ~= -1 and distance <= 3.0 then
+		TriggerServerEvent("pepperspray:TriggerPlayerEffect", GetPlayerServerId(closestPlayer))
+	else
+		local fallPos = GetOffsetFromEntityInWorldCoords(foundPed, 0.0, -1.0, 0.0)
+		SetPedToRagdollWithFall(foundPed, 7000, 7000, 1, -GetEntityForwardVector(foundPed), 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+	end
+
 
         while IsControlPressed(0, 24) and count > 0 do
 
@@ -181,4 +178,26 @@ function Notification(message)
 	SetNotificationTextEntry("STRING")
 	AddTextComponentString(message)
 	DrawNotification(0, 1)
+end
+
+function GetClosestPlayer()
+    local players = GetActivePlayers()
+    local closestDistance = -1
+    local closestPlayer = -1
+    local ply = GetPlayerPed(-1)
+    local plyCoords = GetEntityCoords(ply, 0)
+
+    for index,value in ipairs(players) do
+        local target = GetPlayerPed(value)
+        if(target ~= ply) then
+            local targetCoords = GetEntityCoords(GetPlayerPed(value), 0)
+            local distance = GetDistanceBetweenCoords(targetCoords['x'], targetCoords['y'], targetCoords['z'], plyCoords['x'], plyCoords['y'], plyCoords['z'], true)
+            if(closestDistance == -1 or closestDistance > distance) then
+                closestPlayer = value
+                closestDistance = distance
+            end
+        end
+    end
+
+    return closestPlayer, closestDistance
 end
